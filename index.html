@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Dino Math Defender: Mariana Edition</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { margin: 0; overflow: hidden; background-color: #0f172a; touch-action: none; user-select: none; }
+    .star { position: absolute; border-radius: 50%; background: white; animation: twinkle linear infinite; }
+    @keyframes twinkle {
+      0%, 100% { opacity: 0.2; transform: scale(0.8); }
+      50% { opacity: 1; transform: scale(1.2); }
+    }
+    @keyframes pulse-ring {
+      0% { transform: scale(0.8); opacity: 0.5; }
+      100% { transform: scale(1.5); opacity: 0; }
+    }
+    .target-ring {
+      position: absolute; width: 120px; height: 120px;
+      background: rgba(250, 204, 21, 0.4); border-radius: 50%;
+      animation: pulse-ring 1s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+      z-index: -1; top: 50%; left: 50%; margin-top: -60px; margin-left: -60px;
+    }
+    .banner-anim { animation: slideIn 2s ease-in-out forwards; }
+    @keyframes slideIn {
+      0% { opacity: 0; transform: translateY(-50px) scale(0.8); }
+      20% { opacity: 1; transform: translateY(0) scale(1.1); }
+      80% { opacity: 1; transform: translateY(0) scale(1); }
+      100% { opacity: 0; transform: translateY(50px) scale(0.8); }
+    }
+    .roar-text {
+      position: absolute; font-weight: 900; color: #f87171; font-size: 4rem; bottom: 25vh; left: 50%;
+      transform: translateX(-50%); z-index: 60; text-shadow: 0 0 20px rgba(248, 113, 113, 0.8), 4px 4px 0 #000;
+      pointer-events: none; animation: roarPop 1s ease-out forwards;
+    }
+    @keyframes roarPop {
+      0% { transform: translateX(-50%) scale(0.5); opacity: 0; }
+      20% { transform: translateX(-50%) scale(1.5); opacity: 1; }
+      100% { transform: translateX(-50%) scale(1.2); opacity: 0; }
+    }
+    .story-text {
+        text-shadow: 0 4px 10px rgba(0,0,0,0.9);
+        animation: textFlicker 0.1s infinite alternate;
+    }
+    @keyframes textFlicker {
+        from { opacity: 0.95; }
+        to { opacity: 1; }
+    }
+    .cape {
+      position: absolute;
+      width: 60px;
+      height: 80px;
+      background: #ef4444;
+      top: 20px;
+      left: -20px;
+      border-radius: 10px 10px 100% 10px;
+      z-index: -1;
+      transform-origin: top right;
+      animation: capeWave 0.4s infinite alternate ease-in-out;
+      box-shadow: -5px 5px 10px rgba(0,0,0,0.3);
+    }
+    @keyframes capeWave {
+      from { transform: rotate(5deg) skewX(0deg); }
+      to { transform: rotate(25deg) skewX(-10deg); }
+    }
+    .dino-name-display {
+      text-shadow: 0 0 20px rgba(255,255,255,0.5);
+      animation: nameGlow 2s infinite alternate;
+    }
+    @keyframes nameGlow {
+      from { opacity: 0.8; transform: translateX(-50%) scale(1); }
+      to { opacity: 1; transform: translateX(-50%) scale(1.05); }
+    }
+  </style>
+</head>
+<body class="flex flex-col w-full h-screen font-sans text-white">
+
+  <!-- Main Game Area -->
+  <div id="game-container" class="flex-1 relative overflow-hidden transition-transform duration-75">
+    
+    <div id="stars-layer"></div>
+
+    <div id="earth-horizon" class="absolute left-1/2 bottom-[-15vh] w-[150vw] h-[30vh] -translate-x-1/2 rounded-t-[50%] bg-emerald-600 border-t-8 border-emerald-400 shadow-[inset_0_20px_40px_rgba(0,0,0,0.3)] z-0 transition-all duration-1000"></div>
+
+    <div id="story-earth" class="absolute left-1/2 top-[120%] w-[120vw] h-[120vw] -translate-x-1/2 rounded-full bg-emerald-600 border-8 border-emerald-400 shadow-[inset_0_20px_60px_rgba(0,0,0,0.5)] z-0 transition-all duration-1000"></div>
+
+    <!-- Dino Container -->
+    <div id="dino-container" class="absolute transition-all duration-500 z-10 hidden" style="bottom: 12vh; left: 50%;">
+      <div id="dino-wrapper" class="relative">
+          <div id="dino-cape" class="cape hidden"></div>
+          <div id="dino" class="text-7xl md:text-8xl drop-shadow-2xl transition-all duration-500">🦖</div>
+      </div>
+      <div id="roar-visual" class="hidden"></div>
+    </div>
+
+    <!-- Dino Name Label -->
+    <div id="dino-name-ui" class="absolute bottom-4 left-1/2 -translate-x-1/2 dino-name-display text-4xl md:text-6xl font-black text-white z-40 opacity-0 transition-opacity duration-1000 uppercase pointer-events-none text-center w-full">
+      DINO
+    </div>
+
+    <div id="entities-layer" class="absolute inset-0 z-20 pointer-events-none"></div>
+    <svg id="lasers-layer" class="absolute inset-0 w-full h-full pointer-events-none z-30"></svg>
+
+    <!-- HUD -->
+    <div id="hud" class="absolute top-4 left-4 flex flex-col gap-2 z-40 opacity-0 transition-opacity duration-1000">
+      <div class="flex gap-4">
+        <div class="bg-slate-800/80 px-4 py-2 rounded-2xl border-2 border-slate-600 font-bold text-xl md:text-2xl shadow-lg backdrop-blur-sm">
+          Level: <span id="ui-level" class="text-yellow-400">1</span>
+        </div>
+        <div class="bg-slate-800/80 px-4 py-2 rounded-2xl border-2 border-slate-600 font-bold text-xl md:text-2xl shadow-lg backdrop-blur-sm">
+          Score: <span id="ui-score" class="text-green-400">0</span>
+        </div>
+      </div>
+      <div id="super-badge" class="hidden text-xs font-black bg-red-600 text-white px-2 py-0.5 rounded italic w-fit">SUPER MODE</div>
+      <div class="bg-slate-900/60 w-48 h-4 rounded-full border border-slate-500 overflow-hidden">
+        <div id="level-progress-bar" class="bg-blue-500 h-full transition-all duration-300" style="width: 0%"></div>
+      </div>
+    </div>
+
+    <!-- Roar Button -->
+    <div id="roar-ui" class="absolute top-4 left-1/2 -translate-x-1/2 z-40 opacity-0 pointer-events-none transition-opacity duration-500">
+      <button id="roar-btn" onclick="triggerRoar()" class="bg-orange-600 hover:bg-orange-500 text-white px-8 py-3 rounded-full border-b-4 border-orange-800 font-black text-2xl shadow-lg transition-all active:translate-y-1 active:border-b-0 disabled:grayscale disabled:opacity-50">
+        📢 DINO ROAR
+      </button>
+      <div id="roar-status" class="text-center text-xs font-bold mt-1 text-orange-200 uppercase">Available</div>
+    </div>
+
+    <div id="ui-hearts" class="absolute top-4 right-4 flex gap-2 z-40 text-3xl md:text-4xl opacity-0 transition-opacity"></div>
+
+    <!-- Level Banner -->
+    <div id="level-banner" class="absolute inset-0 flex items-center justify-center z-40 pointer-events-none hidden">
+      <h2 id="level-banner-text" class="text-7xl md:text-9xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-200 to-yellow-500 drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)] text-center">
+        LEVEL 1
+      </h2>
+    </div>
+
+    <!-- Story/Ending Overlay -->
+    <div id="story-overlay" class="absolute inset-0 z-50 flex items-center justify-center bg-transparent pointer-events-none hidden">
+        <div class="max-w-4xl px-8 text-center">
+            <h2 id="story-line" class="story-text text-5xl md:text-7xl font-black italic leading-tight uppercase tracking-tighter transition-all duration-700 opacity-0 translate-y-10">
+                Earth is about to be hit by Asteroids. <br/> <span class="text-yellow-400">Only the power of math can stop them!</span>
+            </h2>
+        </div>
+    </div>
+
+    <!-- Start/Game Over/Win Overlay -->
+    <div id="overlay" class="absolute inset-0 bg-slate-900/90 backdrop-blur-md flex flex-col items-center justify-center z-50 p-6">
+      <h1 id="main-title" class="text-6xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-600 mb-8 text-center drop-shadow-2xl">
+        Dino Math <br/> Defender
+      </h1>
+      <div id="game-over-msg" class="hidden bg-red-500 text-white px-8 py-4 rounded-3xl text-4xl font-bold mb-8 rotate-[-2deg] shadow-2xl border-4 border-red-300">
+        Earth Hit!
+      </div>
+      
+      <div id="menu-buttons" class="flex flex-col gap-4">
+          <button id="play-btn" onclick="initGameFlow('NORMAL')" class="bg-yellow-400 hover:bg-yellow-300 text-yellow-900 border-b-8 border-yellow-600 active:border-b-0 active:translate-y-2 text-3xl md:text-5xl font-black py-4 px-12 rounded-full shadow-lg transition-all cursor-pointer">
+            PLAY!
+          </button>
+          <button id="super-btn" onclick="initGameFlow('SUPER')" class="hidden bg-red-600 hover:bg-red-500 text-white border-b-8 border-red-800 active:border-b-0 active:translate-y-2 text-2xl md:text-4xl font-black py-4 px-12 rounded-full shadow-lg transition-all cursor-pointer italic">
+            PLAY SUPER MODE! ⚡
+          </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="controls" class="h-40 md:h-56 bg-slate-800 border-t-8 border-slate-700 p-4 md:p-6 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] z-40 opacity-20 pointer-events-none transition-opacity duration-1000">
+    <div id="options-container" class="grid grid-cols-4 gap-4 h-full max-w-5xl mx-auto">
+      <div class="col-span-4 flex items-center justify-center text-slate-500 text-3xl font-bold animate-pulse">
+        Waiting...
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Variables for global scope to prevent ReferenceErrors
+    const gameContainer = document.getElementById('game-container');
+    const entitiesLayer = document.getElementById('entities-layer');
+    const lasersLayer = document.getElementById('lasers-layer');
+
+    // --- AUDIO SYSTEM & SEQUENCER ---
+    let audioCtx;
+    let sequenceTimer = null;
+
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    const NOTES = {
+      'D3': 146.83, 'G3': 196.00, 'A3': 220.00, 'B3': 246.94, 'C4': 261.63, 'D4': 293.66, 'E4': 329.63, 'F4': 349.23, 'G4': 392.00,
+      'A4': 440.00, 'B4': 493.88, 'C5': 523.25, 'D5': 587.33, 'E5': 659.25, 'F5': 698.46, 'G5': 783.99
+    };
+
+    const jupiterTheme = [
+      { n: 'G3', d: 0.5 }, { n: 'A3', d: 0.5 }, { n: 'B3', d: 1.0 }, { n: 'D4', d: 1.0 }, { n: 'C4', d: 0.5 }, { n: 'B3', d: 0.5 }, { n: 'A3', d: 1.0 },
+      { n: 'G3', d: 0.5 }, { n: 'A3', d: 0.5 }, { n: 'B3', d: 1.0 }, { n: 'A3', d: 1.0 }, { n: 'D3', d: 1.0 },
+      { n: 'G3', d: 0.5 }, { n: 'A3', d: 0.5 }, { n: 'B3', d: 1.0 }, { n: 'D4', d: 1.0 }, { n: 'C4', d: 0.5 }, { n: 'B3', d: 0.5 }, { n: 'A3', d: 1.0 },
+      { n: 'B3', d: 0.5 }, { n: 'A3', d: 0.5 }, { n: 'G3', d: 2.0 }
+    ];
+
+    const heroicTheme = [
+      { n: 'C4', d: 0.2 }, { n: 'G3', d: 0.2 }, { n: 'C4', d: 0.2 }, { n: 'E4', d: 0.2 }, { n: 'G4', d: 0.2 }, { n: 'C5', d: 1.0 }
+    ];
+
+    function playSequence(theme, loop = false, waveform = 'square', volume = 0.05) {
+      stopMusic();
+      let startTime = audioCtx.currentTime;
+      let totalDuration = 0;
+
+      const playNote = (note, time, duration) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = waveform;
+        osc.frequency.setValueAtTime(NOTES[note] || 200, time);
+        gain.gain.setValueAtTime(volume, time);
+        gain.gain.exponentialRampToValueAtTime(0.0001, time + duration - 0.05);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(time); osc.stop(time + duration);
+      };
+
+      theme.forEach(item => {
+        playNote(item.n, startTime + totalDuration, item.d);
+        totalDuration += item.d;
+      });
+
+      if (loop) {
+        sequenceTimer = setTimeout(() => playSequence(theme, true, waveform, volume), totalDuration * 1000);
+      }
+    }
+
+    function stopMusic() {
+      if (sequenceTimer) clearTimeout(sequenceTimer);
+    }
+
+    // --- GAME ENGINE ---
+    const NOMENCLATURE = [
+      "Tiny Dino", "Mini Dino", "Small Dino", "Growing Dino", "Big Dino",
+      "Super Dino", "Giant Dino", "Ultra Dino", "Mega Dino", "Titan Dino", "Marianasaurus"
+    ];
+
+    const engine = {
+      status: 'START',
+      mode: 'NORMAL',
+      score: 0, level: 1, correctInLevel: 0, lives: 3,
+      roarUsedInLevel: false, asteroids: [], lasers: [],
+      dinoX: 50, dinoDir: 1, lastSpawn: 0, lastTime: 0,
+      targetId: null, failedAttempts: 0, options: [], shake: 0,
+      maxLevel: 11
+    };
+
+    const dinoNameUi = document.getElementById('dino-name-ui');
+    const storyOverlay = document.getElementById('story-overlay');
+    const storyLine = document.getElementById('story-line');
+    const storyEarth = document.getElementById('story-earth');
+    const hud = document.getElementById('hud');
+    const heartsUi = document.getElementById('ui-hearts');
+    const roarUi = document.getElementById('roar-ui');
+    const controls = document.getElementById('controls');
+    const dinoContainer = document.getElementById('dino-container');
+    const dinoEl = document.getElementById('dino');
+    const dinoCape = document.getElementById('dino-cape');
+    const superBadge = document.getElementById('super-badge');
+    const superBtn = document.getElementById('super-btn');
+
+    function initGameFlow(mode) {
+        initAudio();
+        engine.mode = mode;
+        if (engine.status === 'START') {
+            runStoryIntro();
+        } else {
+            startGame();
+        }
+    }
+
+    function runStoryIntro() {
+        document.getElementById('overlay').classList.add('hidden');
+        storyOverlay.classList.remove('hidden');
+        playSequence(jupiterTheme, true, 'square', 0.04);
+        storyEarth.style.top = "40%";
+        
+        setTimeout(() => {
+            storyLine.style.opacity = "1";
+            storyLine.style.transform = "translateY(0)";
+            storyLine.innerHTML = `Earth is about to be hit by Asteroids. <br/> <span class="text-yellow-400">Only the power of math can stop them!</span>`;
+            const msg = new SpeechSynthesisUtterance("Earth is about to be hit by Asteroids. Only the power of math can stop them!");
+            msg.onend = () => setTimeout(startGame, 1000);
+            window.speechSynthesis.speak(msg);
+        }, 800);
+    }
+
+    function startGame() {
+      engine.status = 'PLAYING';
+      engine.score = 0; engine.level = 1; engine.correctInLevel = 0; engine.lives = 3;
+      engine.roarUsedInLevel = false; engine.asteroids = []; engine.lasers = []; engine.shake = 0;
+      
+      document.getElementById('overlay').classList.add('hidden');
+      storyOverlay.classList.add('hidden');
+      dinoContainer.classList.remove('hidden');
+      storyEarth.style.top = "120%";
+      hud.style.opacity = "1";
+      heartsUi.style.opacity = "1";
+      roarUi.style.opacity = "1";
+      roarUi.style.pointerEvents = "auto";
+      controls.style.opacity = "1";
+      controls.style.pointerEvents = "auto";
+      dinoNameUi.style.opacity = "1";
+      
+      if (engine.mode === 'SUPER') {
+          dinoCape.classList.remove('hidden');
+          superBadge.classList.remove('hidden');
+      } else {
+          dinoCape.classList.add('hidden');
+          superBadge.classList.add('hidden');
+      }
+
+      updateRoarUI();
+      renderOptions();
+      showLevelBanner();
+    }
+
+    function showLevelBanner() {
+      const bannerTextEl = document.getElementById('level-banner-text');
+      if (engine.level === 11) {
+          bannerTextEl.innerText = "MARIANA BONUS ROUND";
+      } else {
+          bannerTextEl.innerText = "LEVEL " + engine.level;
+      }
+      
+      document.getElementById('level-banner').classList.remove('hidden');
+      document.getElementById('level-banner').classList.remove('banner-anim');
+      void document.getElementById('level-banner').offsetWidth; 
+      document.getElementById('level-banner').classList.add('banner-anim');
+      
+      playSequence(heroicTheme, false, 'sawtooth', 0.08);
+      const textToSpeak = engine.level === 11 ? "Mariana Bonus Round" : "Level " + engine.level;
+      const utterance = new SpeechSynthesisUtterance(textToSpeak);
+      window.speechSynthesis.speak(utterance);
+      
+      setTimeout(() => document.getElementById('level-banner').classList.add('hidden'), 2000);
+    }
+
+    function winGame() {
+      engine.status = 'WIN';
+      stopMusic();
+      playSequence(jupiterTheme, true, 'square', 0.04);
+      
+      engine.asteroids = [];
+      engine.targetId = null;
+      
+      dinoContainer.style.left = "50%";
+      storyEarth.style.top = "40%";
+      hud.style.opacity = "0";
+      heartsUi.style.opacity = "0";
+      roarUi.style.opacity = "0";
+      controls.style.opacity = "0";
+      dinoNameUi.style.opacity = "0";
+      
+      storyOverlay.classList.remove('hidden');
+      storyLine.style.opacity = "0";
+      storyLine.style.transform = "translateY(10px)";
+      
+      setTimeout(() => {
+          storyLine.style.opacity = "1";
+          storyLine.style.transform = "translateY(0)";
+          const winMsgText = "Earth is safe again, thanks to the power of mathematics!";
+          storyLine.innerHTML = `<span class="text-green-400">Earth is safe again,</span><br/>thanks to the power of mathematics!`;
+          const msg = new SpeechSynthesisUtterance(winMsgText);
+          window.speechSynthesis.speak(msg);
+          
+          msg.onend = () => {
+              document.getElementById('main-title').innerText = "YOU SAVED EARTH!";
+              document.getElementById('play-btn').innerText = "PLAY AGAIN";
+              superBtn.classList.remove('hidden'); 
+              document.getElementById('overlay').classList.remove('hidden');
+          };
+      }, 1000);
+    }
+
+    function createAsteroid(time) {
+      let n1, n2, op, ans;
+      const isAddition = Math.random() > 0.5;
+
+      if (engine.level === 11) {
+          const pool = [4, 5, 6, 7, 8, 9];
+          n1 = pool[Math.floor(Math.random() * pool.length)];
+          n2 = pool[Math.floor(Math.random() * pool.length)];
+      } else {
+          const maxVal = Math.min(2 + engine.level - 1, 9);
+          n1 = Math.floor(Math.random() * (maxVal + 1));
+          n2 = Math.floor(Math.random() * (maxVal + 1));
+      }
+
+      if (isAddition) { 
+          op = '+'; ans = n1 + n2; 
+      } else { 
+          if (n1 < n2) [n1, n2] = [n2, n1]; 
+          op = '-'; ans = n1 - n2; 
+      }
+      
+      let baseSpeed = 0.05 + (engine.level * 0.008);
+      if (engine.mode === 'SUPER') baseSpeed *= 1.5;
+
+      return { id: time + Math.random(), x: 15 + Math.random() * 70, y: -15, speed: baseSpeed, num1: n1, num2: n2, operator: op, answer: ans, dead: false };
+    }
+
+    function handleOptionClick(selectedOption) {
+      if (engine.status !== 'PLAYING') return;
+      const target = engine.asteroids.find(a => a.id === engine.targetId);
+      if (!target) return;
+      if (selectedOption === target.answer) {
+        engine.score++; engine.correctInLevel++; target.dead = true; engine.failedAttempts = 0;
+        
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.15);
+
+        engine.lasers.push({ id: Math.random(), startX: engine.dinoX, startY: 85, endX: target.x, endY: target.y, life: 15 });
+        
+        if (engine.correctInLevel >= 10) {
+          if (engine.level >= engine.maxLevel) {
+              winGame();
+          } else {
+              engine.level++; engine.correctInLevel = 0; engine.roarUsedInLevel = false;
+              showLevelBanner(); updateRoarUI();
+          }
+        }
+      } else {
+        engine.failedAttempts++; engine.shake = 15;
+        if (engine.failedAttempts >= 2) { target.dead = true; engine.failedAttempts = 0; damagePlayer(); }
+        else { 
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+        }
+      }
+      render();
+    }
+
+    function damagePlayer() {
+      engine.lives--; engine.shake = 20;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(100, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.4);
+      gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.4);
+      
+      if (engine.lives <= 0) {
+        engine.status = 'GAMEOVER';
+        document.getElementById('game-over-msg').classList.remove('hidden');
+        document.getElementById('overlay').classList.remove('hidden');
+        stopMusic();
+      }
+    }
+
+    function triggerRoar() {
+      if (engine.status !== 'PLAYING' || engine.roarUsedInLevel) return;
+      
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(60, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(180, audioCtx.currentTime + 0.2);
+      osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.8);
+      gain.gain.setValueAtTime(0, audioCtx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.4, audioCtx.currentTime + 0.1);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1.0);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(); osc.stop(audioCtx.currentTime + 1.0);
+
+      engine.roarUsedInLevel = true; engine.shake = 30;
+      document.getElementById('roar-visual').innerText = "ROAARRR!";
+      document.getElementById('roar-visual').className = "roar-text";
+      document.getElementById('roar-visual').classList.remove('hidden');
+      setTimeout(() => document.getElementById('roar-visual').classList.add('hidden'), 1000);
+      engine.asteroids.forEach(a => a.dead = true);
+      engine.targetId = null; engine.failedAttempts = 0;
+      updateRoarUI(); render();
+    }
+
+    function updateRoarUI() {
+      const rb = document.getElementById('roar-btn'), rs = document.getElementById('roar-status');
+      if (engine.roarUsedInLevel) { rb.disabled = true; rs.innerText = "Used this level"; rs.className = "text-center text-xs font-bold mt-1 text-slate-500 uppercase"; }
+      else { rb.disabled = false; rs.innerText = "Available"; rs.className = "text-center text-xs font-bold mt-1 text-orange-200 uppercase"; }
+    }
+
+    for(let i=0; i<60; i++) {
+      const s = document.createElement('div'); s.className = 'star';
+      s.style.left = `${Math.random() * 100}%`; s.style.top = `${Math.random() * 100}%`;
+      s.style.width = s.style.height = `${Math.random() * 3 + 1}px`; s.style.animationDuration = `${Math.random() * 3 + 2}s`;
+      document.getElementById('stars-layer').appendChild(s);
+    }
+
+    function renderOptions() {
+      const colors = ['bg-blue-500', 'bg-purple-500', 'bg-pink-500', 'bg-orange-500'];
+      document.getElementById('options-container').innerHTML = engine.status === 'PLAYING' && engine.options.length === 4 ? 
+        engine.options.map((opt, i) => `<button data-val="${opt}" class="rounded-3xl text-5xl md:text-7xl font-black text-white shadow-xl border-b-8 border-black/20 ${colors[i % 4]} transition-all active:translate-y-2 active:border-b-0">${opt}</button>`).join('')
+        : `<div class="col-span-4 flex items-center justify-center text-slate-500 text-3xl font-bold animate-pulse">Wait for asteroid...</div>`;
+    }
+
+    function tick(time) {
+      if (engine.status === 'PLAYING') {
+        if (!engine.lastTime) engine.lastTime = time;
+        const dt = time - engine.lastTime; engine.lastTime = time;
+        
+        let moveSpeed = dt / 30;
+        if (engine.mode === 'SUPER') moveSpeed *= 1.5;
+
+        engine.dinoX += engine.dinoDir * moveSpeed;
+        if (engine.dinoX > 85) {
+            engine.dinoX = 85;
+            engine.dinoDir = -1;
+        } else if (engine.dinoX < 15) {
+            engine.dinoX = 15;
+            engine.dinoDir = 1;
+        }
+        
+        let earthHit = false;
+        engine.asteroids.forEach(a => { 
+            a.y += a.speed * (dt / 16); 
+            if (a.y > 85) { a.dead = true; earthHit = true; } 
+        });
+        if (earthHit) damagePlayer();
+        engine.asteroids = engine.asteroids.filter(a => !a.dead);
+        
+        let spawnRate = Math.max(4500 - (engine.level * 250), 2000);
+        if (engine.mode === 'SUPER') spawnRate *= 0.67;
+
+        if (time - engine.lastSpawn > spawnRate && engine.asteroids.length < 3) { 
+            engine.asteroids.push(createAsteroid(time)); 
+            engine.lastSpawn = time; 
+        }
+        
+        let lowest = null; engine.asteroids.forEach(a => { if (!lowest || a.y > lowest.y) lowest = a; });
+        if (lowest && engine.targetId !== lowest.id) { 
+            engine.targetId = lowest.id; 
+            engine.failedAttempts = 0; 
+            engine.options = (function(correctAnswer) { const opts = new Set([correctAnswer]); while (opts.size < 4) { let r = correctAnswer + (Math.floor(Math.random() * 5) - 2); if (r < 0 || r > 20) r = Math.floor(Math.random() * 10); opts.add(r); } return Array.from(opts).sort(() => Math.random() - 0.5); })(lowest.answer); 
+            renderOptions(); 
+        } else if (!lowest && engine.targetId) { 
+            engine.targetId = null; 
+            renderOptions(); 
+        }
+        
+        engine.lasers.forEach(l => l.life -= (dt / 16)); 
+        engine.lasers = engine.lasers.filter(l => l.life > 0);
+        if (engine.shake > 0) engine.shake--;
+        render();
+      }
+      requestAnimationFrame(tick);
+    }
+
+    function render() {
+      if (engine.shake > 0) {
+          gameContainer.style.transform = `translate(${(Math.random()-0.5)*15}px, ${(Math.random()-0.5)*15}px)`;
+      } else {
+          gameContainer.style.transform = 'none';
+      }
+
+      dinoContainer.style.left = `${engine.dinoX}%`;
+      
+      const currentScale = Math.pow(1.15, engine.level - 1);
+      dinoEl.style.transform = `translateX(-50%) scaleX(${engine.dinoDir < 0 ? -1 : 1})`;
+      dinoContainer.style.transform = `scale(${currentScale})`;
+      
+      const name = NOMENCLATURE[engine.level - 1] || "Legend Dino";
+      dinoNameUi.innerText = (engine.mode === 'SUPER' ? "SUPER " : "") + name;
+
+      document.getElementById('ui-score').innerText = engine.score; 
+      document.getElementById('ui-level').innerText = engine.level;
+      document.getElementById('level-progress-bar').style.width = `${(engine.correctInLevel / 10) * 100}%`;
+      
+      let hts = ''; 
+      for(let i=0; i<3; i++) hts += `<div class="${i < engine.lives ? 'opacity-100' : 'opacity-20'}">❤️</div>`;
+      heartsUi.innerHTML = hts;
+
+      let asts = ''; 
+      engine.asteroids.forEach(a => { 
+          const isT = a.id === engine.targetId; 
+          asts += `<div class="absolute flex flex-col items-center" style="left: ${a.x}%; top: ${a.y}%; transform: translate(-50%, -50%);">
+            ${isT ? '<div class="target-ring"></div>' : ''}
+            <div class="text-6xl md:text-7xl animate-bounce">☄️</div>
+            <div class="mt-2 px-6 py-2 rounded-2xl text-3xl font-black bg-white text-slate-800 border-4 ${isT ? 'border-yellow-400 scale-110 shadow-yellow-500/50' : 'border-slate-300'}">
+                ${a.num1} ${a.operator} ${a.num2}
+            </div>
+          </div>`; 
+      });
+      entitiesLayer.innerHTML = asts;
+
+      let lsrs = ''; 
+      engine.lasers.forEach(l => { 
+          lsrs += `<line x1="${l.startX}%" y1="${l.startY}%" x2="${l.endX}%" y2="${l.endY}%" stroke="#4ade80" stroke-width="10" stroke-linecap="round" stroke-dasharray="15 15" class="opacity-70" />`; 
+      });
+      lasersLayer.innerHTML = lsrs;
+    }
+
+    document.getElementById('options-container').addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (btn && btn.dataset.val) handleOptionClick(parseInt(btn.dataset.val));
+    });
+
+    requestAnimationFrame(tick);
+  </script>
+</body>
+</html>
